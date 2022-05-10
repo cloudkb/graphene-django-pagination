@@ -15,7 +15,6 @@ class DjangoPaginationConnectionField(DjangoFilterConnectionField):
         self,
         type,
         fields=None,
-        order_by=None,
         extra_filter_meta=None,
         filterset_class=None,
         *args,
@@ -30,7 +29,6 @@ class DjangoPaginationConnectionField(DjangoFilterConnectionField):
 
         kwargs.setdefault("limit", Int(description="Query limit"))
         kwargs.setdefault("offset", Int(description="Query offset"))
-        kwargs.setdefault("ordering", String(description="Query order"))
 
         super(DjangoPaginationConnectionField, self).__init__(
             type,
@@ -84,11 +82,6 @@ class DjangoPaginationConnectionField(DjangoFilterConnectionField):
 
             _len = len(iterable)
 
-        ordering = arguments.get("ordering")
-
-        if ordering:
-            iterable = connection_from_list_ordering(iterable, ordering)
-
         connection = connection_from_list_slice(
             iterable,
             arguments,
@@ -138,12 +131,3 @@ def connection_from_list_slice(
                 has_next_page=page.has_next()
             )
         )
-
-
-def connection_from_list_ordering(items_list, ordering):
-    field, order = ordering.split(',')
-
-    order = '-' if order == 'desc' else ''
-    field = re.sub(r'(?<!^)(?=[A-Z])', '_', field).lower()
-
-    return items_list.order_by(f'{order}{field}')
