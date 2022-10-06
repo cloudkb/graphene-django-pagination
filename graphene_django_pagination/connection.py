@@ -13,10 +13,12 @@ class PaginationConnection(Connection):
     @classmethod
     def __init_subclass_with_meta__(cls, node=None, name=None, **options):
         _meta = ConnectionOptions(cls)
-        base_name = re.sub("Connection$", "", name or cls.__name__) or node._meta.name # noqa
+        base_name = (
+            re.sub("Connection$", "", name or cls.__name__) or node._meta.name
+        )  # noqa
 
         if not name:
-            name = "{}Connection".format(base_name)
+            name = f"{base_name}Connection"
 
         options["name"] = name
         _meta.node = node

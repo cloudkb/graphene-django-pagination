@@ -10,6 +10,7 @@ from django.db.models.query import QuerySet
 from . import PaginationConnection, PageInfoExtra
 from django import __version__ as django_version
 
+
 class DjangoPaginationConnectionField(DjangoFilterConnectionField):
     def __init__(
         self,
@@ -18,7 +19,7 @@ class DjangoPaginationConnectionField(DjangoFilterConnectionField):
         extra_filter_meta=None,
         filterset_class=None,
         *args,
-        **kwargs
+        **kwargs,
     ):
         self._type = type
         self._fields = fields
@@ -30,57 +31,25 @@ class DjangoPaginationConnectionField(DjangoFilterConnectionField):
         kwargs.setdefault("limit", Int(description="Query limit"))
         kwargs.setdefault("offset", Int(description="Query offset"))
 
-        super(DjangoPaginationConnectionField, self).__init__(
-            type,
-            *args,
-            **kwargs
-        )
+        super().__init__(type, *args, **kwargs)
 
     @property
     def type(self):
-
         class NodeConnection(PaginationConnection):
             total_count = Int()
 
             class Meta:
                 node = self._type
-                name = '{}NodeConnection'.format(self._type._meta.name)
+                name = f"{self._type._meta.name}NodeConnection"
 
             def resolve_total_count(self, info, **kwargs):
-                return self.iterable.count()
+                return self.length
 
         return NodeConnection
 
     @classmethod
-    def resolve_connection(cls, connection, *args, **kwargs):
-        # The signature of this method is different between
-        # versions 2.x and 3.x of Django this implementation
-        # maintains compatibility between versions
-        if django_version >= '3.0.0':
-            arguments=args[0]
-            iterable=args[1]
-            max_limit=kwargs.get('max_limit')
-
-            iterable = maybe_queryset(iterable)
-
-            _len = len(iterable)
-
-        else:
-            default_manager=args[0]
-            arguments=args[1]
-            iterable=args[2]
-
-            if iterable is None:
-                iterable = default_manager
-
-            iterable = maybe_queryset(iterable)
-
-            if isinstance(iterable, QuerySet):
-                if iterable.model.objects is not default_manager:
-                    default_queryset = maybe_queryset(default_manager)
-                    iterable = cls.merge_querysets(default_queryset, iterable)
-
-            _len = len(iterable)
+    def resolve_connection(cls, connection, arguments, iterable, *args, **kwargs):
+        iterable = maybe_queryset(iterable)
 
         connection = connection_from_list_slice(
             iterable,
@@ -89,7 +58,6 @@ class DjangoPaginationConnectionField(DjangoFilterConnectionField):
             pageinfo_type=PageInfoExtra,
         )
         connection.iterable = iterable
-        connection.length = _len
 
         return connection
 
@@ -104,30 +72,23 @@ def connection_from_list_slice(
     if limit is None:
         return connection_type(
             results=list_slice,
-            page_info=pageinfo_type(
-                has_previous_page=False,
-                has_next_page=False
-            )
+            page_info=pageinfo_type(has_previous_page=False, has_next_page=False),
         )
-    else:
-        assert isinstance(limit, int), "Limit must be of type int"
-        assert limit > 0, "Limit must be positive integer greater than 0"
+    assert isinstance(limit, int), "Limit must be of type int"
+    assert limit > 0, "Limit must be positive integer greater than 0"
 
-        paginator = Paginator(list_slice, limit)
-        _slice = list_slice[offset:(offset+limit)]
+    paginator = Paginator(list_slice, limit)
+    _slice = list_slice[offset : (offset + limit)]
 
-        page_num = math.ceil(offset/limit) + 1
-        page_num = (
-            paginator.num_pages
-            if page_num > paginator.num_pages
-            else page_num
-        )
-        page = paginator.page(page_num)
+    page_num = math.ceil(offset / limit) + 1
+    page_num = paginator.num_pages if page_num > paginator.num_pages else page_num
+    page = paginator.page(page_num)
 
-        return connection_type(
-            results=_slice,
-            page_info=pageinfo_type(
-                has_previous_page=page.has_previous(),
-                has_next_page=page.has_next()
-            )
-        )
+    conn = connection_type(
+        results=_slice,
+        page_info=pageinfo_type(
+            has_previous_page=page.has_previous(), has_next_page=page.has_next()
+        ),
+    )
+    conn.length = paginator.count
+    return conn
