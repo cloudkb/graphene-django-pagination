@@ -43,7 +43,13 @@ class DjangoPaginationConnectionField(DjangoFilterConnectionField):
                 name = f"{self._type._meta.name}NodeConnection"
 
             def resolve_total_count(self, info, **kwargs):
-                return self.length
+                try:
+                    return self.length
+                except AttributeError:
+                    try:
+                        return self.iterable.count()
+                    except AttributeError:
+                        return len(list(self.iterable))
 
         return NodeConnection
 
